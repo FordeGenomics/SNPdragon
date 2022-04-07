@@ -1,0 +1,9 @@
+work/
+batch_output/
+benchmarking/
+__pycache__/
+.DS_Store/
+*.py[cod]
+*$py.class
+*csv
+.nextflow*
