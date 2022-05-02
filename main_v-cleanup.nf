@@ -1,14 +1,28 @@
 #!/usr/bin/env nextflow
 
 /*
-nextflow run main_v-cleanup.nf --ref /path/to/reference.fasta --out /path/to/outdir --reads "/path/to/reads/*_R{1,2}.f*.gz" -with-timeline timeline.html -with-trace -with-report report.tsv -profile slurm_cluster
+nextflow run main_v-cleanup.nf \
+--ref reference.fasta \
+--out outdir \
+--reads "reads/*_R{1,2}.f*.gz" \
+-params-file params.yaml -profile test \
+-with-timeline timeline.html \
+-with-trace \
+-with-report report.tsv
 
 */
 
+nextflow.enable.dsl=1
+
 log.info """\
-reference     : $params.ref
-out           : $params.out
-reads         : $params.reads
+reference       : $params.ref
+out             : $params.out
+reads           : $params.reads
+remove_clusters : $params.remove_clusters
+remove_cliffs   : $params.remove_cliffs
+exclude_ref     : $params.exclude_ref
+contig_coverage : $params.contig_coverage
+mask_file       : $params.mask_file
 """
 
 /* file object for reference and sample files */
@@ -32,7 +46,7 @@ process buildBwaIndex {
   script:
   """
   set +eu
-  source activate snp_pipeline_general
+  source activate snpdragon_general
   set -eu
 
   bwa index ${ref}
@@ -70,7 +84,7 @@ Channel
 //   script:
 //   """
 //   set +eu
-//   source activate snp_pipeline_general
+//   source activate snpdragon_general
 //   set -eu
 //
 //   mkdir -p ${params.out}/reads
@@ -100,12 +114,8 @@ process mapping {
     script:
     """
     set +eu
-    source activate snp_pipeline_general
+    source activate snpdragon_general
     set -eu
-
-    mkdir -p ${params.out}/1_map
-
-    echo Mapping ${sample} `date '+%d/%m/%Y_%H:%M:%S'`
 
     bwa mem \
     -R '@RG\\tID:1\\tSM:${sample}' \
@@ -137,22 +147,19 @@ process coverage {
     script:
     """
     set +eu
-    source activate snp_pipeline_general
+    source activate snpdragon_general
     set -eu
 
-    mkdir -p ${params.out}/2_cov
-
-    parallel -k -j ${task.cpus} samtools depth -aa -q 10 -Q 60 -r {1} ${params.out}/1_map/${sample}.bam :::: <(/${params.script_dir}/fasta_generate_samtools_regions.py ${ref}.fai 100000 ) > ${sample}.pileup
+    parallel -k -j ${task.cpus} samtools depth -aa -q 10 -Q 60 -r {1} ${params.out}/1_map/${sample}.bam :::: <(fasta_generate_samtools_regions.py ${ref}.fai 100000 ) > ${sample}.pileup
 
     touch ${sample}.coverage
 
     """
-    // samtools mpileup -f ${ref} -a -q 1 ${bam} -o ${sample}.pileup
 }
 
 process freebayes {
     tag "${sample}"
-    publishDir "${params.out}/3_call", pattern:'*bcf*', mode:'copy', overwrite:true
+    publishDir "${params.out}/3_call", pattern:'*bcf*', overwrite:true
 
     input:
     file ref from ref_file
@@ -166,10 +173,8 @@ process freebayes {
     script:
     """
     set +eu
-    source activate snp_pipeline_freebayes
+    source activate snpdragon_freebayes
     set -eu
-
-    mkdir -p ${params.out}/3_call
 
     freebayes \
     -f ${ref} \
@@ -209,14 +214,10 @@ process samples {
     script:
     """
     set +eu
-    source activate snp_pipeline_general
+    source activate snpdragon_general
     set -eu
 
-    mkdir -p ${params.out}/4_vcf
-    mkdir -p ${params.out}/5_pkl
-
-    pickle_samples.py -s ${sample} -c ${params.out}/2_cov/${sample}.pileup -b ${params.out}/3_call/${sample}.bcf -r
-
+    pickle_samples.py -s ${sample} -c ${params.out}/2_cov/${sample}.pileup -b ${params.out}/3_call/${sample}.bcf --remove_clusters ${params.remove_clusters} --remove_cliffs ${params.remove_cliffs}
     """
 }
 
@@ -237,21 +238,22 @@ process process_results {
     val sample from sample_ch
 
     output:
-    file("*fasta") into fasta_ch
-    file("*tsv") into stats_ch
-    file("*_snpmatrix.csv") into mtx_ch
     val(sample) into msa_ch
-    file("*fasta")
-    file("*csv")
+    file("*fasta") optional true into fasta_ch
+    file("*core_stats.tsv") optional true into stats_ch
+    file("*_snpmatrix.csv") optional true into mtx_ch
+    file("*excluded.tsv") optional true into exclude_ch
+    file("*fasta") optional true
+    file("*csv") optional true
+    file("*tsv") optional true
+    
 
     """
     set +eu
-    source activate snp_pipeline_general
+    source activate snpdragon_general
     set -eu
-    
-    mkdir -p ${params.out}/6_msa/${sample}
 
-    process_pickles.py -f "${ref}" -s "${sample}" -l "${samples}" -o ${params.out} -e -r
+    process_pickles.py -f "${ref}" -s "${sample}" -l "${samples}" -e ${params.exclude_ref} -c ${params.contig_coverage} --remove_clusters ${params.remove_clusters} --remove_cliffs ${params.remove_cliffs} 
     """
 }
 
@@ -261,21 +263,24 @@ process concat {
 
   input:
   file ref from ref_file
-  file fasta_files from fasta_ch.collect()
-  file stat_files from stats_ch.collect()
-  file mtx_files from mtx_ch.collect()
   val samples from msa_ch.collect()
+  file exclude_files from exclude_ch.collect().ifEmpty("No excluded samples")
+  file fasta_files from fasta_ch.collect().ifEmpty("No included samples")
+  file stat_files from stats_ch.collect().ifEmpty("No core stats")
+  file mtx_files from mtx_ch.collect().ifEmpty("No SNP matrix")
+  
 
   output:
-  file("core_snp.fasta")
-  file("full_snp.fasta")
-  file("full_aln.fasta")
-  file("core_stats.tsv")
-  file("snp_dist.csv")
-  file("snp_matrix.csv")
+  file("core_snp.fasta") optional true
+  file("full_snp.fasta") optional true
+  file("full_aln.fasta") optional true
+  file("core_stats.tsv") optional true
+  file("snp_dist.csv") optional true
+  file("snp_matrix.csv") optional true
+  file("excluded.tsv") optional true
   """
   set +eu
-  source activate snp_pipeline_general
+  source activate snpdragon_general
   set -eu
 
   concat_msa.py -f "${ref}" -l "${samples}" -o ${params.out}

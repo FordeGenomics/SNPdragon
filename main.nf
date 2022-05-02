@@ -1,13 +1,26 @@
 #!/usr/bin/env nextflow
 
 /*
-nextflow run main.nf --ref /path/to/reference.fasta --out /path/to/outdir --reads "/path/to/reads/*_R{1,2}.f*.gz" -with-timeline timeline.html -with-trace -with-report report.tsv -profile slurm_cluster
+nextflow run main.nf \
+--ref reference.fasta \
+--out outdir \
+--reads "reads/*_R{1,2}.f*.gz" \
+-params-file params.yaml -profile test \
+-with-timeline timeline.html \
+-with-trace \
+-with-report report.tsv
 */
+nextflow.enable.dsl=1
 
 log.info """\
-reference     : $params.ref
-out           : $params.out
-reads         : $params.reads
+reference       : $params.ref
+out             : $params.out
+reads           : $params.reads
+remove_clusters : $params.remove_clusters
+remove_cliffs   : $params.remove_cliffs
+exclude_ref     : $params.exclude_ref
+contig_coverage : $params.contig_coverage
+mask_file       : $params.mask_file
 """
 
 /* file object for reference and sample files */
@@ -19,7 +32,7 @@ Build genome index required for mapping
 */
 
 process buildBwaIndex {
-  publishDir "${params.out}/1_map", overwrite:true
+  publishDir "${params.out}/1_map", mode:'copy', overwrite:true
   tag "$ref_file.baseName"
 
   input:
@@ -31,7 +44,7 @@ process buildBwaIndex {
   script:
   """
   set +eu
-  source activate snp_pipeline_general
+  source activate snpdragon_general
   set -eu
 
   bwa index ${ref}
@@ -69,10 +82,8 @@ Channel
 //   script:
 //   """
 //   set +eu
-//   source activate snp_pipeline_general
+//   source activate snpdragon_general
 //   set -eu
-//
-//   mkdir -p ${params.out}/reads
 //
 //   trimmomatic PE -threads 1 ${params.in}/${sample}_R1.fastq.gz ${params.in}/${sample}_R2.fastq.gz \
 //   ${sample}_trimmed_R1.fastq.gz ${sample}_unpaired_R1.fastq.gz \
@@ -84,7 +95,7 @@ Channel
 process mapping {
     label "multi"
     tag "${sample}"
-    publishDir "${params.out}/1_map", overwrite:true
+    publishDir "${params.out}/1_map", mode:'copy', overwrite:true
 
     input:
     file ref from ref_file
@@ -99,10 +110,8 @@ process mapping {
     script:
     """
     set +eu
-    source activate snp_pipeline_general
+    source activate snpdragon_general
     set -eu
-
-    mkdir -p ${params.out}/1_map
 
     bwa mem \
     -R '@RG\\tID:1\\tSM:${sample}' \
@@ -126,7 +135,7 @@ process mapping {
 process coverage {
     label "multi"
     tag "${sample}"
-    publishDir "${params.out}/2_cov", overwrite:true
+    publishDir "${params.out}/2_cov", mode:'copy', overwrite:true
 
     input:
     file ref from ref_file
@@ -140,22 +149,17 @@ process coverage {
     script:
     """
     set +eu
-    source activate snp_pipeline_general
+    source activate snpdragon_general
     set -eu
-
-    mkdir -p ${params.out}/2_cov
 
     parallel -k -j ${task.cpus} samtools depth -aa -q 10 -Q 60 -r {1} ${sample}.bam :::: <(fasta_generate_samtools_regions.py ${ref}.fai 100000 ) > ${sample}.pileup
 
     """
-    // samtools mpileup -a -q 10 -f ${ref}
-    // samtools mpileup -a -q 10 -Q 0 -f ${ref}
-    // samtools depth -aa -q 10 -Q 10
 }
 
 process freebayes {
     tag "${sample}"
-    publishDir "${params.out}/3_call", overwrite:true
+    publishDir "${params.out}/3_call", mode:'copy', overwrite:true
 
     input:
     file ref from ref_file
@@ -169,10 +173,8 @@ process freebayes {
     script:
     """
     set +eu
-    source activate snp_pipeline_freebayes
+    source activate snpdragon_freebayes
     set -eu
-
-    mkdir -p ${params.out}/3_call
 
     freebayes \
     -f ${ref} \
@@ -194,8 +196,8 @@ process freebayes {
 
 process samples {
     tag "${sample}"
-    publishDir "${params.out}/4_vcf", pattern:'*vcf', overwrite:true
-    publishDir "${params.out}/5_pkl", pattern:'*pkl', overwrite:true
+    publishDir "${params.out}/4_vcf", pattern:'*vcf', mode:'copy', overwrite:true
+    publishDir "${params.out}/5_pkl", pattern:'*pkl', mode:'copy', overwrite:true
 
     input:
     tuple val(sample), file(bcf), file(pileup) from bcf_ch.join(pileup_ch)
@@ -210,20 +212,17 @@ process samples {
     script:
     """
     set +eu
-    source activate snp_pipeline_general
+    source activate snpdragon_general
     set -eu
 
-    mkdir -p ${params.out}/4_vcf
-    mkdir -p ${params.out}/5_pkl
-
-    pickle_samples.py -s ${sample} -c ${sample}.pileup -b ${sample}.bcf -r
+    pickle_samples.py -s ${sample} -c ${sample}.pileup -b ${sample}.bcf --remove_clusters ${params.remove_clusters} --remove_cliffs ${params.remove_cliffs}
     """
 }
 
 process process_results {
     label "big_memory"
     tag "${sample}"
-    publishDir "${params.out}/6_msa/${sample}", overwrite:true
+    publishDir "${params.out}/6_msa/${sample}", mode:'copy', overwrite:true
     memory { 3.GB * task.attempt }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 5
@@ -248,18 +247,16 @@ process process_results {
 
     """
     set +eu
-    source activate snp_pipeline_general
+    source activate snpdragon_general
     set -eu
 
-    mkdir -p ${params.out}/6_msa/${sample}
-
-    process_pickles.py -f "${ref}" -s "${sample}" -l "${samples}" -o ${params.out} -r -e -c 70
+    process_pickles.py -f "${ref}" -s "${sample}" -l "${samples}" -e ${params.exclude_ref} -c ${params.contig_coverage} --remove_clusters ${params.remove_clusters} --remove_cliffs ${params.remove_cliffs} 
     """
 }
 
 process concat {
   tag "Concatenating"
-  publishDir "${params.out}/6_msa"
+  publishDir "${params.out}/6_msa", mode:'copy', overwrite:true
 
   input:
   file ref from ref_file
@@ -282,7 +279,7 @@ process concat {
 
   """
   set +eu
-  source activate snp_pipeline_general
+  source activate snpdragon_general
   set -eu
 
   concat_msa.py -f "${ref}" -l "${samples}" -o ${params.out}

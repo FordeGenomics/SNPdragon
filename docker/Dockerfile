@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM --platform=linux/amd64 ubuntu:20.04
 LABEL maintainer="t.cuddihy1@uq.edu.au"
 SHELL [ "/bin/bash", "--login", "-c" ]
 
@@ -18,8 +18,8 @@ RUN echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.profile
 RUN conda init bash
 
 RUN conda update --name base --channel defaults conda
-RUN conda env create --file /tmp/env_snp_pipeline_general.yml --force
-RUN conda env create --file /tmp/env_snp_pipeline_freebayes.yml --force
+RUN conda env create --file /tmp/env_snpdragon_general.yml --force
+RUN conda env create --file /tmp/env_snpdragon_freebayes.yml --force
 
 RUN conda clean --all --yes
 RUN rm -f /tmp/env_*

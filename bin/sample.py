@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import csv
 import numpy as np
@@ -232,7 +232,7 @@ class Sample:
         cliffs (list): List of positions occuring in cliffs
     """
 
-    def __init__(self, name, frac, cov_file, vcf_file, outdir="", filt_clust=False, filt_cliffs=True):
+    def __init__(self, name, cov_file, vcf_file, filt_clust, filt_cliffs, outdir=""):
         """ Name, coverage csv from bedfile and snp results for each sample
         Params:
             name (str): Sample name
@@ -241,7 +241,6 @@ class Sample:
         """
         self.name = name
         self.outdir = outdir
-        self.frac = frac # Default 0.5 passed in pickle_samples.py TO BE REMOVED
         self.filter_clust = filt_clust
         self.filter_cliffs = filt_cliffs
         self.contigs = set()
@@ -579,10 +578,9 @@ class Sample:
 # TODO: Load in the json format into dataframes, converting string to int
 class jsonSample(Sample):
     """ Load Sample data from json file """
-    def __init__(self,name,outdir,frac,filter_clust,filter_cliffs,contigs,header,refsUnfilt,snpSeries,ufSeries,covSeries,cliffs,mix,clusters):
+    def __init__(self,name,outdir,filter_clust,filter_cliffs,contigs,header,refsUnfilt,snpSeries,ufSeries,covSeries,cliffs,mix,clusters):
         self.name = name
         self.outdir = outdir
-        self.frac = frac
         self.filter_clust = filter_clust
         self.filter_cliffs = filter_cliffs
         self.contigs = contigs

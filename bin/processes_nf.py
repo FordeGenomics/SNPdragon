@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 
 import csv
@@ -144,7 +144,7 @@ class Mtx:
     self.mtx (Pandas DataFrame): All SNP call results and low coverage regions
     """
 
-    def __init__(self, ref, sample, results, maskFile = None, threads = 1, recomb = True, exclude = False, outdir=""):
+    def __init__(self, ref, sample, results, maskFile = None, threads = 1, recomb = False, cliff = True, exclude = False, outdir=""):
         self.ref = ref
         self.sample = sample
         self.contigs = set()
@@ -154,6 +154,7 @@ class Mtx:
         self.threads = threads
         self.mask_file = maskFile
         self.recomb = recomb
+        self.cliff = cliff
         self.exclude = exclude
         self.outdir = outdir
         self.mtx = {} # all snps and all low coverage positions
@@ -231,7 +232,7 @@ class Mtx:
         """
         # refs = self.results.getSnpRef()
 
-        cliffs = self.results.getCliffs()
+
         # self.results.writeAllVcf(self.outdir, cliffs, "cliffs")
 
         mix = self.results.getMix()
@@ -241,31 +242,40 @@ class Mtx:
             clusters = self.results.getClusters()
             # self.results.writeAllVcf(self.outdir, clusters, "clusters")
         else:
-            clusters = None # empty set if not using inbuilt rough recombination removal
+            clusters = None # empty set if not using inbuilt sliding window snp cluster removal
+        
+        if self.cliff:
+            cliffs = self.results.getCliffs()
+        else:
+            cliffs = None
+        
         if self.mask_file:
             masked = self.maskedPos()
         else:
             masked = None
 
         for contig in self.snp.keys():
-            cliff_pos = cliffs.get(contig)
+
             if mix is not None:
                 mix_pos = mix.get(contig)
+                print("Number of mix/ambigious SNP call positions for {}: {}".format(contig, len(mix_pos)))
             else:
                 mix_pos = []
             if clusters is not None:
                 clust_pos = clusters.get(contig)
+                print("Number of clustered positions for {}: {}".format(contig, len(clust_pos)))
             else:
                 clust_pos = []
+            if cliffs is not None:
+                cliff_pos = cliffs.get(contig)
+                print("Number of cliff positions for {}: {}".format(contig, len(cliff_pos)))
+            else:
+                cliff_pos = []
             if masked is not None:
                 mask_pos = masked.get(contig)
+                print("Number of masked positions from bed/gff file {}: {}".format(contig, len(mask_pos)))
             else:
                 mask_pos = []
-
-            print("Number of cliff positions for {}: {}".format(contig, len(cliff_pos)))
-            print("Number of mix/ambigious SNP call positions for {}: {}".format(contig, len(mix_pos)))
-            print("Number of clustered positions for {}: {}".format(contig, len(clust_pos)))
-            print("Number of masked positions from bed/gff file {}: {}".format(contig, len(mask_pos)))
 
             # Set as argument to remove all ambiguous positions, default = keep
             # remove = set().union(cliff_pos, mask_pos, clust_pos, mix_pos)

@@ -1,4 +1,4 @@
-name: snp_pipeline_freebayes
+name: snpdragon_freebayes
 channels:
   - bioconda
   - conda-forge

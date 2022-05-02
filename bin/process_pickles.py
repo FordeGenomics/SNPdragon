@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 """
 Example: python process_pickles.py -s test/samples.list -o test -t 3 -f 0.5 -r
@@ -29,12 +29,13 @@ def parse_args():
     parser.add_argument('-s', type=str, required=True, metavar='Sample_name', help="Sample name to produce fasta alignment files for")
     parser.add_argument('-i', type=str, metavar='samples_list.txt', help="File of sample names")
     parser.add_argument('-l', type=str, metavar='"[Sample1, Sample2]"', help="list of sample names in the collection utilised by nextflow version")
-    parser.add_argument('-o', type=str, required=True, metavar='path/to/output/dir', help="Output directory")
+    # parser.add_argument('-o', type=str, required=True, metavar='path/to/output/dir', help="Output directory")
     parser.add_argument('-t', type=int, default=1,   metavar='1', help='Number of threads/cpus')
     parser.add_argument('-m', type=str, metavar='recomb_pos.gff', help="GFF or Bed file of ranges e.g. recombination and/or phage to mask in the alignment")
-    parser.add_argument('-r', action='store_true', default=False, help='Use inbuilt recombination removal')
-    parser.add_argument('-e', action='store_true', default=False, help='Exclude reference sequence from output alignment files')
-    parser.add_argument('-c', type=int, default=70, metavar='70', help="Minimum coverage of samples to include in matrix")
+    parser.add_argument('-e', type=bool, default=False, help='Exclude reference sequence from output alignment files')
+    parser.add_argument('-c', type=int, default=70, metavar='70', help="Minimum percent contig breadth of coverage of sample to include in output")
+    parser.add_argument('--remove_clusters', type=bool, default=False, help='Remove SNPs in clusters (3 SNPs in 10bp window)')
+    parser.add_argument('--remove_cliffs', type=bool, default=True, help="Remove SNPs in cliffs")
 
     return parser.parse_args()
 
@@ -71,8 +72,8 @@ def main():
     # print(f"Memory tracing start {current / 1024**2}MB; Peak was {peak / 1024**2}MB")
     args = parse_args()
     # make sure dirs have '/' at the end
-    if not args.o.endswith('/'):
-        args.o = args.o+'/'
+    # if not args.o.endswith('/'):
+    #     args.o = args.o+'/'
 
     print("Loading results:", datetime.datetime.now())
 
@@ -112,7 +113,7 @@ def main():
         
 
     print("Building Matrix object:", datetime.datetime.now())
-    matrix = pr.Mtx(args.f, sample, results, threads = args.t, recomb = args.r, exclude = args.e, maskFile = args.m)
+    matrix = pr.Mtx(args.f, sample, results, threads = args.t, recomb = args.remove_clusters, cliff = args.remove_cliffs, exclude = args.e, maskFile = args.m)
 
     # current, peak = tracemalloc.get_traced_memory()
     # print(f"Memory matrix built {current / 1024**2}MB; Peak was {peak / 1024**2}MB")
