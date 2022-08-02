@@ -10,7 +10,7 @@ def parse_args():
     parser.add_argument('-c', type=str, metavar='sample.pileup',  help="Coverage pileup file")
     parser.add_argument('-b', type=str, metavar='sample.bcf', help="Variant bcf file")
     parser.add_argument('--remove_clusters', type=bool, default=False, help='Remove SNPs in clusters (3 SNPs in 10bp window)')
-    parser.add_argument('--remove_cliffs', type=bool, default=True, help="Perform cliff searching")
+    parser.add_argument('--remove_cliffs', type=bool, default=False, help="Perform cliff searching")
     return parser.parse_args()
 
 def main():

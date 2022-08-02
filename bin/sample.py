@@ -258,6 +258,8 @@ class Sample:
         self.clusters = {}
         self.coverage = {}
 
+        print("Initialising {}, filter_cluster={}, filter_cliffs={}".format(self.name, self.filt_clust, self.filt_cliffs))
+
         self.readPileup(cov_file)
         self.readVCF(vcf_file)
 
