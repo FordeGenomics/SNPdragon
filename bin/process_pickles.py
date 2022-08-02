@@ -34,8 +34,8 @@ def parse_args():
     parser.add_argument('-m', type=str, metavar='recomb_pos.gff', help="GFF or Bed file of ranges e.g. recombination and/or phage to mask in the alignment")
     parser.add_argument('-e', type=bool, default=False, help='Exclude reference sequence from output alignment files')
     parser.add_argument('-c', type=int, default=70, metavar='70', help="Minimum percent contig breadth of coverage of sample to include in output")
-    parser.add_argument('--remove_clusters', type=bool, default=False, help='Remove SNPs in clusters (3 SNPs in 10bp window)')
-    parser.add_argument('--remove_cliffs', type=bool, default=True, help="Remove SNPs in cliffs")
+    parser.add_argument('--remove_clusters', type=str, choices=('True', 'true', 'False', 'false'), default=False, help='Remove SNPs in clusters (3 SNPs in 10bp window)')
+    parser.add_argument('--remove_cliffs', type=str, choices=('True','true','False','false'), default=False, help="Perform cliff searching")
 
     return parser.parse_args()
 
@@ -113,7 +113,10 @@ def main():
         
 
     print("Building Matrix object:", datetime.datetime.now())
-    matrix = pr.Mtx(args.f, sample, results, threads = args.t, recomb = args.remove_clusters, cliff = args.remove_cliffs, exclude = args.e, maskFile = args.m)
+    remove_clusters = args.remove_clusters.lower() == 'true'
+    remove_cliffs = args.remove_cliffs.lower() == 'true'
+
+    matrix = pr.Mtx(args.f, sample, results, threads = args.t, recomb = remove_clusters, cliff = remove_cliffs, exclude = args.e, maskFile = args.m)
 
     # current, peak = tracemalloc.get_traced_memory()
     # print(f"Memory matrix built {current / 1024**2}MB; Peak was {peak / 1024**2}MB")

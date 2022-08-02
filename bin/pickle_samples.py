@@ -20,7 +20,6 @@ def main():
     remove_clusters = args.remove_clusters.lower() == 'true'
     remove_cliffs = args.remove_cliffs.lower() == 'true'
 
-
     pileup="{}.pileup".format(args.s)
     bcf="{}.bcf".format(args.s)
     sample = Sample(name=args.s, cov_file=args.c, vcf_file=args.b, filt_clust=remove_clusters, filt_cliffs=remove_cliffs)
