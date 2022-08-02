@@ -3,6 +3,7 @@ batch_output/
 benchmarking/
 __pycache__/
 .DS_Store/
+.DS_Store*
 *.py[cod]
 *$py.class
 *csv
