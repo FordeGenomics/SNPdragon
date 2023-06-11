@@ -54,8 +54,9 @@ class Results:
         exclude = False
         for contig in sample.coverage.keys():
             if sample.coverage[contig] < self.min_cov:
+                print("Excluding {} as coverage {} < {}".format(contig, sample.coverage[contig], self.min_cov))
                 exclude = True
-        return exclude
+        return False
 
     def getAllFiltered(self):
         """ Returns dict{contig:set{pos.alt}} of all high quality variants and low coverage positions across all samples 

@@ -1,5 +1,5 @@
-remove_clusters: false
-remove_cliffs: true
+remove_clusters: true
+remove_cliffs: false
 exclude_ref: true
 contig_coverage: 70
 mask_file: null
